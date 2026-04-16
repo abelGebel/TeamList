@@ -22,22 +22,25 @@ db = SQLAlchemy(app)
 
 # Modelos de la base de datos
 class Seleccion(db.Model):
+    __tablename__ = 'tl_seleccion'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False, unique=True)
     jugadores = db.relationship('Jugador', backref='seleccion', lazy=True, cascade="all, delete-orphan")
 
 class Club(db.Model):
+    __tablename__ = 'tl_club'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False, unique=True)
     jugadores = db.relationship('Jugador', backref='club', lazy=True)
 
 class Jugador(db.Model):
+    __tablename__ = 'tl_jugador'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     posicion = db.Column(db.String(50), nullable=False)
-    seleccion_id = db.Column(db.Integer, db.ForeignKey('seleccion.id'), nullable=False)
+    seleccion_id = db.Column(db.Integer, db.ForeignKey('tl_seleccion.id'), nullable=False)
     orden = db.Column(db.Integer, default=0)
-    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
+    club_id = db.Column(db.Integer, db.ForeignKey('tl_club.id'), nullable=False)
 
     def __repr__(self):
         return f'<Jugador {self.nombre}>'
