@@ -12,6 +12,10 @@ database_url = os.environ.get('DATABASE_URL', 'sqlite:///jugadores.db')
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
+if database_url.startswith("sqlite") and os.environ.get('RENDER'):
+    # Advertencia: SQLite en Render no es persistente sin discos montados
+    print("ADVERTENCIA: Usando SQLite en un entorno efímero. Los datos se perderán al reiniciar.")
+
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -53,6 +57,7 @@ def crear_seleccion():
         nueva = Seleccion(nombre=nombre)
         db.session.add(nueva)
         db.session.commit()
+        flash(f'Selección "{nombre}" creada.', 'success')
     return redirect(url_for('index'))
 
 @app.route('/seleccion/<int:id>')
@@ -128,10 +133,14 @@ def eliminar_jugador(id):
 @app.route('/reordenar_jugadores', methods=['POST'])
 def reordenar_jugadores():
     data = request.get_json()
+    if not data:
+        return {'status': 'error', 'message': 'No data provided'}, 400
+        
     # Recibimos una lista de IDs en el nuevo orden
     orden_ids = data.get('orden', [])
     for index, jugador_id in enumerate(orden_ids):
-        jugador = Jugador.query.get(jugador_id)
+        # Usamos session.get() que es el reemplazo moderno de query.get()
+        jugador = db.session.get(Jugador, jugador_id)
         if jugador:
             jugador.orden = index
     db.session.commit()
