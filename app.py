@@ -18,35 +18,19 @@ if database_url.startswith("sqlite") and os.environ.get('RENDER'):
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Configuración para evitar desconexiones prematuras en Render/Postgres
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
+}
 db = SQLAlchemy(app)
 
 # Modelos de la base de datos
-class Seleccion(db.Model):
-    __tablename__ = 'tl_seleccion'
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(100), nullable=False, unique=True)
-    jugadores = db.relationship('Jugador', backref='seleccion', lazy=True, cascade="all, delete-orphan")
-
-class Club(db.Model):
-    __tablename__ = 'tl_club'
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(100), nullable=False, unique=True)
-    jugadores = db.relationship('Jugador', backref='club', lazy=True)
-
-class Jugador(db.Model):
-    __tablename__ = 'tl_jugador'
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(100), nullable=False)
-    posicion = db.Column(db.String(50), nullable=False)
-    seleccion_id = db.Column(db.Integer, db.ForeignKey('tl_seleccion.id'), nullable=False)
-    orden = db.Column(db.Integer, default=0)
-    club_id = db.Column(db.Integer, db.ForeignKey('tl_club.id'), nullable=False)
-
-    def __repr__(self):
-        return f'<Jugador {self.nombre}>'
-
 with app.app_context():
     db.create_all()
+    # Imprimir en logs de Render para verificar qué DB se está usando realmente
+    db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
+    print(f"INFO: Conectado a base de datos tipo: {db_type}")
 
 @app.route('/')
 def index():
@@ -97,10 +81,11 @@ def registrar_jugador(seleccion_id):
         if not club:
             club = Club(nombre=nombre_club)
             db.session.add(club)
-            db.session.commit()
+            db.session.flush() # Usar flush en lugar de commit intermedio
         
         # Calcular el siguiente número de orden para esa posición
-        max_orden = max([j.orden for j in seleccion.jugadores if j.posicion == posicion] + [-1])
+        ordenes = [j.orden for j in seleccion.jugadores if j.posicion == posicion]
+        max_orden = max(ordenes) if ordenes else -1
         
         nuevo_jugador = Jugador(
             nombre=nombre, 
@@ -111,6 +96,8 @@ def registrar_jugador(seleccion_id):
         )
         db.session.add(nuevo_jugador)
         db.session.commit()
+    else:
+        flash('Todos los campos son obligatorios.', 'danger')
     
     return redirect(url_for('ver_seleccion', id=seleccion_id))
 
